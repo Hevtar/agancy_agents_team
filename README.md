@@ -352,6 +352,278 @@ pytest tests/ -v
 pytest tests/ --cov=. --cov-report=html
 ```
 
+## 🚀 Развёртывание на VPS
+
+### Требования к VPS
+
+- **ОС**: Ubuntu 20.04+ / Debian 11+ / CentOS 8+
+- **CPU**: минимум 2 ядра (рекомендуется 4+)
+- **RAM**: минимум 4GB (рекомендуется 8GB+)
+- **Диск**: минимум 40GB SSD
+- **Доступ**: root или пользователь с sudo правами
+
+### Шаг 1: Подготовка сервера
+
+```bash
+# Подключение к серверу
+ssh root@your-server-ip
+
+# Обновление системы
+sudo apt update && sudo apt upgrade -y
+
+# Установка необходимых пакетов
+sudo apt install -y git curl wget software-properties-common apt-transport-https ca-certificates
+
+# Установка Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Установка Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Проверка установки
+docker --version
+docker-compose --version
+
+# Выход и повторный вход для применения изменений групп
+exit
+```
+
+### Шаг 2: Клонирование репозитория
+
+```bash
+# Подключение к серверу
+ssh user@your-server-ip
+
+# Клонирование проекта
+git clone git@github.com:Hevtar/agancy_agents_team.git
+cd agancy_agents_team
+
+# Или через HTTPS (если нет SSH ключа)
+git clone https://github.com/Hevtar/agancy_agents_team.git
+cd agancy_agents_team
+```
+
+### Шаг 3: Настройка переменных окружения
+
+```bash
+# Копирование примера
+cp .env.example .env
+
+# Редактирование .env файла
+nano .env
+```
+
+Пример содержимого `.env` для production:
+```bash
+# Приложение
+APP_ENV=production
+APP_DEBUG=false
+
+# POLZA AI (получите ключ на polza.ai)
+POLZA_AI_API_KEY=your-polza-ai-api-key-here
+POLZA_AI_BASE_URL=https://polza.ai/api/v1
+
+# База данных
+POSTGRES_DB=agency_db
+POSTGRES_USER=agency_user
+POSTGRES_PASSWORD=secure-random-password-here
+
+# Redis
+REDIS_PASSWORD=secure-redis-password-here
+
+# Grafana
+GRAFANA_ADMIN_PASSWORD=secure-grafana-password-here
+
+# API URL для фронтенда (укажите ваш домен или IP)
+NEXT_PUBLIC_API_URL=https://api.your-domain.com/api
+```
+
+### Шаг 4: Настройка домена и SSL (опционально, но рекомендуется)
+
+```bash
+# Установка Nginx
+sudo apt install -y nginx
+
+# Создание конфигурации Nginx
+sudo nano /etc/nginx/sites-available/agency-agents
+```
+
+Пример конфигурации Nginx:
+```nginx
+# Frontend
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# API
+server {
+    listen 80;
+    server_name api.your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+```bash
+# Включение конфигурации
+sudo ln -s /etc/nginx/sites-available/agency-agents /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Установка SSL сертификата (Let's Encrypt)
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com -d api.your-domain.com
+```
+
+### Шаг 5: Запуск через Docker Compose
+
+```bash
+cd infra
+
+# Запуск всех сервисов
+sudo docker-compose up -d
+
+# Проверка статуса
+sudo docker-compose ps
+
+# Просмотр логов
+sudo docker-compose logs -f
+```
+
+### Шаг 6: Инициализация базы данных
+
+```bash
+# Запуск миграций
+sudo docker exec agency_api python scripts/init_db.py
+
+# Создание администратора (если есть скрипт)
+sudo docker exec agency_api python scripts/create_admin.py --username admin --password your-secure-password
+```
+
+### Шаг 7: Проверка работы
+
+```bash
+# Проверка API
+curl https://api.your-domain.com/api/health
+
+# Проверка фронтенда
+curl https://your-domain.com
+
+# Проверка через браузер
+# Откройте https://your-domain.com
+```
+
+### Шаг 8: Мониторинг и обслуживание
+
+```bash
+# Просмотр логов конкретного сервиса
+sudo docker-compose logs -f api
+sudo docker-compose logs -f frontend
+sudo docker-compose logs -f celery_worker
+
+# Перезапуск сервиса
+sudo docker-compose restart api
+
+# Остановка всех сервисов
+sudo docker-compose down
+
+# Обновление проекта
+cd /path/to/agancy_agents_team
+git pull origin master
+sudo docker-compose down
+sudo docker-compose build --no-cache
+sudo docker-compose up -d
+```
+
+### Автоматический перезапуск при сбоях
+
+Docker Compose автоматически перезапускает контейнеры при сбоях благодаря настройкам в docker-compose.yml:
+
+```yaml
+restart: unless-stopped
+```
+
+### Резервное копирование базы данных
+
+```bash
+# Создание бэкапа
+sudo docker exec agency_postgres pg_dump -U agency_user agency_db > backup_$(date +%Y%m%d).sql
+
+# Восстановление из бэкапа
+cat backup_20260415.sql | sudo docker exec -i agency_postgres psql -U agency_user -d agency_db
+```
+
+### Настройка файрвола (UFW)
+
+```bash
+# Установка UFW
+sudo apt install -y ufw
+
+# Настройка правил
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+
+# Включение файрвола
+sudo ufw enable
+sudo ufw status
+```
+
+## 📊 Troubleshooting
+
+### Проблемы с подключением к базе данных
+
+```bash
+# Проверка статуса PostgreSQL
+sudo docker-compose ps postgres
+
+# Просмотр логов
+sudo docker-compose logs postgres
+
+# Перезапуск
+sudo docker-compose restart postgres
+```
+
+### Проблемы с памятью
+
+Если серверу не хватает памяти:
+
+```bash
+# Уменьшение количества worker'ов
+# Отредактируйте docker-compose.yml, уменьшив CELERY_WORKER_CONCURRENCY
+
+# Или отключите неиспользуемые сервисы
+sudo docker-compose stop grafana prometheus
+```
+
+### Проблемы с SSL
+
+```bash
+# Проверка сертификата
+sudo certbot certificates
+
+# Обновление сертификата
+sudo certbot renew --dry-run
+```
+
 ## 📄 Лицензия
 
 MIT License
