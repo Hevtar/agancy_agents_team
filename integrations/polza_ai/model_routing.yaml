@@ -1,0 +1,97 @@
+model_tiers:
+  fast:
+    primary: "google/gemma-3n-e4b-it"
+    fallback: "google/gemini-2.0-flash-lite-001"
+    max_tokens: 2048
+    temperature: 0.5
+    use_cases:
+      - "Генерация черновиков текстов"
+      - "Форматирование отчётов"
+      - "Рутинные статус-апдейты"
+      - "Парсинг и структурирование данных"
+      - "Генерация simple SQL"
+
+  balanced:
+    primary: "meta-llama/llama-3-70b-instruct"
+    fallback: "meta-llama/llama-3-70b-instruct"
+    max_tokens: 4096
+    temperature: 0.4
+    use_cases:
+      - "SMM контент и копирайтинг"
+      - "UI/UX спецификации"
+      - "SEO-рекомендации"
+      - "Маркетинговые планы"
+      - "Спринт-планирование"
+
+  powerful: 
+    primary: "qwen/qwen3-vl-235b-a22b-instruct"
+    fallback: "google/gemma-4-31b-it"
+    max_tokens: 8192
+    temperature: 0.2
+    use_cases:
+      - "Архитектурные решения"
+      - "Финансовый анализ и прогнозы"
+      - "Стратегические решения CEO"
+      - "Технические спецификации"
+      - "Системный анализ"
+      - "Бизнес-аналитика"
+      - "Data engineering"
+
+# Agent to model tier mapping
+agent_model_mapping:
+  # Executive agents
+  ceo: powerful
+  product_owner: powerful
+  project_manager: balanced
+
+  # Strategic agents
+  strategist: powerful
+  marketing_strategist: powerful
+  marketing_director: balanced
+  brand_manager: balanced
+
+  # Technical agents
+  tech_lead: powerful
+  fullstack_dev: balanced
+  system_analyst: powerful
+  data_engineer: powerful
+  data_analyst: powerful
+
+  # Creative agents
+  designer: balanced
+  ux_designer: balanced
+  content_manager: balanced
+  seo_copywriter: balanced
+  smm_manager: balanced
+  social_media_manager: balanced
+  targetologist: balanced
+  ppc_specialist: balanced
+  seo_specialist: balanced
+  email_marketing_manager: balanced
+
+  # Financial agents
+  cfo: powerful
+  economist: powerful
+
+  # Support agents
+  cro_specialist: balanced
+  customer_support_agent: balanced
+  report_generator: balanced
+  crm_manager: balanced
+
+# Default model for unspecified agents
+default_model_tier: balanced
+
+# Retry configuration
+retry_config:
+  max_retries: 3
+  retry_delay_seconds: 1
+  exponential_backoff: true
+
+# Cost tracking (tokens per 1M)
+cost_per_million_tokens:
+  google/gemma-3n-e4b-it: 0.07
+  google/gemini-2.0-flash-lite-001: 0.075
+  meta-llama/llama-3-70b-instruct: 0.70
+  qwen/qwen3-vl-235b-a22b-instruct: 2.0
+  google/gemma-4-31b-it: 0.15
